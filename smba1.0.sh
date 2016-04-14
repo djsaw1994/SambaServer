@@ -1,7 +1,7 @@
 #! /bin/bash
 # Nombre del script: smba
 # Programador: Paulo Gustavo Soares Teixeira <pauloxti@gmail.com>
-# Fecha: 22/08/2015
+# Fecha: 14/04/2016
 # Explicación del programa:
 
 # El programa consta de 9 funciones:
@@ -18,64 +18,85 @@
 
 distri=NULL
 
-pause(){
-echo -e "\033[0m"
-read -p "Pulsa la tecla intro para continuar..." tecla
+#Instala dependencias del script
+instalarDependecias()
+{
+    if [ $distri == 'Ubuntu' ]; then
+        sudo apt-get install vim 
+    elif [ $distri == 'CentOS' ]; then
+        sudo yum install vim
+    fi
+}
+
+pause()
+{
+    echo -e "\033[0m"
+    read -p "Pulsa la tecla intro para continuar..." tecla
 }
 
 # Comprueba que el usuario es root
-rootCheck(){
-ROOT_UID=0   # El $UID de root es 0.
-if [ "$UID" -ne "$ROOT_UID" ]; then
-	clear
-	echo -e "\033[31;5;2m     !EL SCRIPT DEBE SER EJECUTADO COMO ROOT¡.\033[0m"
-	echo ""
-	pause
-	clear
-	break
-fi
+rootCheck()
+{
+    ROOT_UID=0   # El $UID de root es 0.
+    if [ "$UID" -ne "$ROOT_UID" ]; then
+    	  clear
+        zenity --error --text "El script debe ser ejecutado con permisos de administrador."
+      exit
+    fi
 }
 
 #Comprueba que distribucion se usa
-distriCheck(){
-#Almacena la distribucion de linux del sistema
-getDistri=`lsb_release -a | grep "Distributor ID" | cut -d: -f2`
-if [ $getDistri == 'Ubuntu' ]; then
-  distri='Ubuntu'
-elif [ $getDistri == 'CentOS' ]; then
-  distri='CentOS'
-else
-  echo "Distribucion no compatible"
-  pause
-  break
-fi
+distriCheck()
+{
+    #Almacena la distribucion de linux del sistema
+    getDistri=`lsb_release -a | grep "Distributor ID" | cut -d: -f2`
+
+    if [ $getDistri == 'Ubuntu' ]; then
+        distri='Ubuntu'
+    elif [ $getDistri == 'CentOS' ]; then
+        distri='CentOS'
+    else
+      zenity --error --text "Distribucion no compatible."
+      break
+      exit
+    fi
 }
 
-restartSMB(){
-if [ $distri == 'Ubuntu' ]; then
-service smbd restart
-pause
-elif [ $distri == 'CentOS' ]; then
-/etc/init.d/smb restart
-pause
-fi
+#Reinicia el servicio samba
+restartSMB()
+{
+    if [ $distri == 'Ubuntu' ]; then
+        zenity --info --text "Reiniciando servidor samba"
+        /etc/init.d/smbd stop
+        /etc/init.d/smbd start
+        pause
+    elif [ $distri == 'CentOS' ]; then
+        /etc/init.d/smb restart
+        pause
+    fi
 }
 
-smbInstall(){
-if [ $distri == 'CentOS' ]; then
-yum install samba4
-elif [ $distri == 'Ubuntu' ]; then
-aptitude install samba
-fi
-if [ $? == 0 ]; then
-  echo -e "\033[32;1m Se ha instalado 'samba' correctamente\033[0m"
-else
-  echo -e "\033[31;1m Se ha producido un error instalando 'samba'\033[0m"
-fi
-pause
+#Instala samba en el equipo
+smbInstall()
+{
+    if [ $distri == 'Ubuntu' ]; then
+        sudo apt-get install samba
+    elif [ $distri == 'CentOS' ]; then
+        sudo yum install samba4
+    fi
+
+    #Comprobamos que la instalacion fue correcta
+    if [ $? == 0 ]; then
+        zenity --info --text "Se ha instalado samba correctamente"
+    else
+        zenity --error --text "Se ha producido un error instalado samba"
+    fi
+    pause
 }
 
-dir(){ 
+dir()
+{ 
+carpeta=NULL
 clear
 echo ""
 echo "1. Crear una carpeta."
@@ -86,23 +107,28 @@ read -p "Selecciona que accion desea realizar: " eleccion
 case $eleccion in
     # Crear directorio comparido
     1) clear
-       read -p "Escriba el nombre de la carpeta que desea crear: " cdir
-       read -p "Escriba la ruta donde la desea crear " ruta
-       mkdir -p $ruta/$cdir; chmod 770 $ruta/$cdir; chmod g+s $ruta/$cdir
-       chown $USER:$USER /$ruta/$cdir
-       read -p "Escribe una descripcion para el recurso: " comment
+       carpeta=`zenity --file-selection --directory`
+       mkdir -p $carpeta; chmod 770 $carpeta; chmod g+s $carpeta
+       chown $USER:$USER $carpeta
+       descripcion=`zenity --entry --text "Introduce una descripcion para el rescurso"`
        echo "" >> /etc/samba/smb.conf
-       echo "[$cdir]" >> /etc/samba/smb.conf
-       echo "	comment = $comment" >> /etc/samba/smb.conf
-       echo "	path = $ruta/$cdir" >> /etc/samba/smb.conf
+       echo "[$(basename $carpeta)]" >> /etc/samba/smb.conf
+       echo "	comment = $descripcion" >> /etc/samba/smb.conf
+       echo "	path = $carpeta" >> /etc/samba/smb.conf
        echo "        create mask = 770" >> /etc/samba/smb.conf
        echo "        directory mask = 770" >> /etc/samba/smb.conf
        echo "        force create mode = 770" >> /etc/samba/smb.conf
        echo "        force directory mode = 770" >> /etc/samba/smb.conf
        echo "	read only = No" >> /etc/samba/smb.conf
-       read -p "Desea auditar este recurso?(S/n): " eleccionr
-       case $eleccionr in
+       auditar=`zenity --entry --text "Desea auditar este recurso(S/n): "`
+       case $auditar in
            'S') clear
+                #Si no existe el script colorlog lo instalamos en el sistema
+                if [ ! -f /usr/bin/colorlog.pl ]; then
+                    sudo cp colorlog.pl /usr/bin/colorlog.pl
+                    sudo chmod 777 /usr/bin/colorlog.pl
+                fi
+
                 echo "        vfs objects = full_audit" >> /etc/samba/smb.conf
                 echo "        full_audit:prefix = %u|%I|%m|%S" >> /etc/samba/smb.conf
                 echo "        full_audit:success = mkdir rename unlink rmdir pwrite pread connect disconnect" >> /etc/samba/smb.conf
@@ -111,13 +137,13 @@ case $eleccion in
                 echo "        full_audit:priority = NOTICE" >> /etc/samba/smb.conf;;
            'n') clear;;
              *) clear
-              echo "No ha seleccionado ninguna opcion valida"
+              zenity --error --text "No ha seleccionado ninguna opcion valida"
               pause;;
        esac
        if [ $? = 0 ] ; then
-           echo -e "\033[32;1mLa carpeta $cdir se ha creado correctamente.\033[0m"
+           zenity --info --text "El directorio $carpeta se a creado correctamente"
        else
-           echo -e "\033[31;1mLa carpeta $cdir no se ha creado correctamente.\033[0m"
+           zenity --erro --text "No se a podido crear el directorio $carpeta"
        fi 
        restartSMB;;
     # Borrar directorio compartido
@@ -419,60 +445,70 @@ fi
 pause
 }
 
-smbLog(){
-# Muestra el log de la auditoria de samba
-echo "Recuerda añadir esta cadena 'local7.* /var/log/smbAudit.log' al fichero /etc/rsyslog.d/50-default.conf
-y ejecutar 'service rsyslog restart'  si no funciona el log de samba"
-pause
-cat /var/log/smbAudit.log | colorlog.pl | more
-pause
+smbLog()
+{
+    # Muestra el log de la auditoria de samba
+    echo "Recuerda añadir esta cadena 'local7.* /var/log/smbAudit.log' al fichero /etc/rsyslog.d/50-default.conf
+    y ejecutar 'service rsyslog restart'  si no funciona el log de samba"
+    pause
+    cat /var/log/smbAudit.log | colorlog.pl | more
+    pause
 }
+
+#Comprobamos que es ejecutado por el usuario administrador
+rootCheck
+
+#Comprobamos que distribucion esta instalada
+distriCheck
+
+#Instalamos dependecias
+instalarDependecias
+
+
 
 while true
 do
-  rootCheck
-  distriCheck
-  clear
-  echo ""
-  echo "  ***************************************************  "
-  echo " ***************************************************** "
-  echo "*******************************************************"
-  echo "***                                                 ***"
-  echo "***                 .::AdminSMBv1.0::.              ***"
-  echo "***                                                 ***"
-  echo "***    1. Instalar SAMBA                            ***"
-  echo "***    2. Crear/borrar una carpeta para compartir.  ***"
-  echo "***    3. Crear/borrar un usuario del sistema.      ***"
-  echo "***    4. Crear/borrar un usuario de SAMBA.         ***"
-  echo "***    5. Gestion de grupos.                        ***"
-  echo "***    6. Gestion de permisos y propietarios.       ***"
-  echo "***    7. Lista de comandos.                        ***"
-  echo "***    8. Informacion del sistema.                  ***"
-  echo "***    9. Restablecer contraseña.                   ***"
-  echo "***   10. Ver log de actividades.                   ***"
-  echo "**    11. Reiniciar servidor SAMBA (No el equipo)   ***"
-  echo "***   12. Salir.                                    ***"
-  echo "***                                                 ***"
-  echo "*******************************************************"
-  echo " ***************************************************** "
-  echo "  ***************************************************  "
-  echo ""
-  read -p "Introduce que accion deseas realizar: " eleccionMenu
+    clear
+    echo ""
+    echo "  ***************************************************  "
+    echo " ***************************************************** "
+    echo "*******************************************************"
+    echo "***                                                 ***"
+    echo "***                 .::AdminSMBv1.0::.              ***"
+    echo "***                                                 ***"
+    echo "***    1. Instalar SAMBA                            ***"
+    echo "***    2. Crear/borrar una carpeta para compartir.  ***"
+    echo "***    3. Crear/borrar un usuario del sistema.      ***"
+    echo "***    4. Crear/borrar un usuario de SAMBA.         ***"
+    echo "***    5. Gestion de grupos.                        ***"
+    echo "***    6. Gestion de permisos y propietarios.       ***"
+    echo "***    7. Lista de comandos.                        ***"
+    echo "***    8. Informacion del sistema.                  ***"
+    echo "***    9. Restablecer contraseña.                   ***"
+    echo "***   10. Ver log de actividades.                   ***"
+    echo "**    11. Reiniciar servidor SAMBA (No el equipo)   ***"
+    echo "***   12. Salir.                                    ***"
+    echo "***                                                 ***"
+    echo "*******************************************************"
+    echo " ***************************************************** "
+    echo "  ***************************************************  "
+    echo ""
+    read -p "Introduce que accion deseas realizar: " eleccionMenu
 
-  case $eleccionMenu in
-    1) clear; smbInstall;;
-    2) clear; dir;; 
-    3) clear; sysUsers;;
-    4) clear; smbUsers;; 
-    5) clear; groups;;
-    6) clear; permissions;;
-    7) clear; commands;;
-    8) clear; sysInfo;;
-    9) clear; password;;
-   10) clear; smbLog;;
-   11) clear; restartSMB;;
-   12) clear; break;;  
-    *) echo "No ha seleccionado ninguna opcion valida"
-       pause;;
-  esac
+    case $eleccionMenu in
+      1) clear; smbInstall;;
+      2) clear; dir;; 
+      3) clear; sysUsers;;
+      4) clear; smbUsers;; 
+      5) clear; groups;;
+      6) clear; permissions;;
+      7) clear; commands;;
+      8) clear; sysInfo;;
+      9) clear; password;;
+     10) clear; smbLog;;
+     11) clear; restartSMB;;
+     12) clear; break;;  
+      *) echo "No ha seleccionado ninguna opcion valida"
+         pause;;
+    esac
 done
