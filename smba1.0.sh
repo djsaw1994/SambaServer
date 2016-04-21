@@ -16,45 +16,36 @@
 #  9. password() ---> Nos permite cambiar la contraseña de los usuarios del sistema y de SAMBA.
 # 10. smbLog() -----> Muestra un log de las actividades en los directorios compartidos
 
-distri=NULL
+miDistribucion=NULL
 
-#Instala dependencias del script
-instalarDependecias()
-{
-    if [ $distri == 'Ubuntu' ]; then
-        sudo apt-get install vim 
-    elif [ $distri == 'CentOS' ]; then
-        sudo yum install vim
-    fi
-}
-
+# Funcion: Realiza una pausa en el terminal hasta que el usuario pulsa cualquier tecla
 pause()
 {
     echo -e "\033[0m"
     read -p "Pulsa la tecla intro para continuar..." tecla
 }
 
-# Comprueba que el usuario es root
-rootCheck()
+# Funcion: Comprueba que el usuario que ejecuta el script tiene permisos de administrador
+comprobarRoot()
 {
     ROOT_UID=0   # El $UID de root es 0.
     if [ "$UID" -ne "$ROOT_UID" ]; then
     	  clear
-        zenity --error --text "El script debe ser ejecutado con permisos de administrador."
+          zenity --error --text "El script debe ser ejecutado con permisos de administrador."
       exit
     fi
 }
 
-#Comprueba que distribucion se usa
-distriCheck()
+#Comprueba que distribucion de linux esta ejecutando el script
+comprobarDistribucion()
 {
     #Almacena la distribucion de linux del sistema
-    getDistri=`lsb_release -a | grep "Distributor ID" | cut -d: -f2`
+    distribucionSistema=`lsb_release -a | grep "Distributor ID" | cut -d: -f2`
 
-    if [ $getDistri == 'Ubuntu' ]; then
-        distri='Ubuntu'
-    elif [ $getDistri == 'CentOS' ]; then
-        distri='CentOS'
+    if [ $distribucionSistema == 'Ubuntu' ]; then
+        $miDistribucion=$distrucionSistema
+    elif [ $distribucionSistema == 'CentOS' ]; then
+        $miDistribucion='CentOS'
     else
       zenity --error --text "Distribucion no compatible."
       break
@@ -63,25 +54,25 @@ distriCheck()
 }
 
 #Reinicia el servicio samba
-restartSMB()
+reiniciarSamba()
 {
-    if [ $distri == 'Ubuntu' ]; then
+    if [ $miDistribucion == 'Ubuntu' ]; then
         zenity --info --text "Reiniciando servidor samba"
         /etc/init.d/smbd stop
         /etc/init.d/smbd start
         pause
-    elif [ $distri == 'CentOS' ]; then
+    elif [ $miDistribucion == 'CentOS' ]; then
         /etc/init.d/smb restart
         pause
     fi
 }
 
 #Instala samba en el equipo
-smbInstall()
+instalarSamba()
 {
-    if [ $distri == 'Ubuntu' ]; then
+    if [ $miDistribucion == 'Ubuntu' ]; then
         sudo apt-get install samba
-    elif [ $distri == 'CentOS' ]; then
+    elif [ $miDistribucion == 'CentOS' ]; then
         sudo yum install samba4
     fi
 
@@ -94,76 +85,97 @@ smbInstall()
     pause
 }
 
-dir()
+crearCarpetaCompartida()
 { 
-carpeta=NULL
-clear
-echo ""
-echo "1. Crear una carpeta."
-echo "2. Borrar una carpeta."
-echo "3. Salir."
-echo ""
-read -p "Selecciona que accion desea realizar: " eleccion
-case $eleccion in
-    # Crear directorio comparido
-    1) clear
-       carpeta=`zenity --file-selection --directory`
-       mkdir -p $carpeta; chmod 770 $carpeta; chmod g+s $carpeta
-       chown $USER:$USER $carpeta
-       descripcion=`zenity --entry --text "Introduce una descripcion para el rescurso"`
-       echo "" >> /etc/samba/smb.conf
-       echo "[$(basename $carpeta)]" >> /etc/samba/smb.conf
-       echo "	comment = $descripcion" >> /etc/samba/smb.conf
-       echo "	path = $carpeta" >> /etc/samba/smb.conf
-       echo "        create mask = 770" >> /etc/samba/smb.conf
-       echo "        directory mask = 770" >> /etc/samba/smb.conf
-       echo "        force create mode = 770" >> /etc/samba/smb.conf
-       echo "        force directory mode = 770" >> /etc/samba/smb.conf
-       echo "	read only = No" >> /etc/samba/smb.conf
-       auditar=`zenity --entry --text "Desea auditar este recurso(S/n): "`
-       case $auditar in
-           'S') clear
-                #Si no existe el script colorlog lo instalamos en el sistema
-                if [ ! -f /usr/bin/colorlog.pl ]; then
-                    sudo cp colorlog.pl /usr/bin/colorlog.pl
-                    sudo chmod 777 /usr/bin/colorlog.pl
-                fi
+    carpeta=NULL
+    clear
+    echo ""
+    echo "1. Crear una carpeta."
+    echo "2. Borrar una carpeta."
+    echo "3. Salir."
+    echo ""
+    read -p "Selecciona que accion desea realizar: " eleccion
+    case $eleccion in
+        # Crear directorio comparido
+        1) clear
+           #Seleccionamos la carpeta que queremos compartir
+           carpeta=`zenity --file-selection --directory`
+           while [[ ! -d $carpeta ]]; do
+               carpeta=`zenity --file-selection --directory`
+           done
+           
+           mkdir -p $carpeta; chmod 770 $carpeta; chmod g+s $carpeta
+           creadorCarpeta=`sudo who | cut -d " " -f1`
+           $creadorCarpeta=`$creadorCarpeta | cut -d " " -f1`
+           chown $creadorCarpeta:$creadorCarpeta $carpeta
 
-                echo "        vfs objects = full_audit" >> /etc/samba/smb.conf
-                echo "        full_audit:prefix = %u|%I|%m|%S" >> /etc/samba/smb.conf
-                echo "        full_audit:success = mkdir rename unlink rmdir pwrite pread connect disconnect" >> /etc/samba/smb.conf
-                echo "        full_audit:failure = none" >> /etc/samba/smb.conf
-                echo "        full_audit:facility = local7" >> /etc/samba/smb.conf
-                echo "        full_audit:priority = NOTICE" >> /etc/samba/smb.conf;;
-           'n') clear;;
-             *) clear
-              zenity --error --text "No ha seleccionado ninguna opcion valida"
-              pause;;
-       esac
-       if [ $? = 0 ] ; then
-           zenity --info --text "El directorio $carpeta se a creado correctamente"
-       else
-           zenity --erro --text "No se a podido crear el directorio $carpeta"
-       fi 
-       restartSMB;;
-    # Borrar directorio compartido
-    2) clear
-       read -p "Escriba el nombre de la carpeta que desea eliminar: " bdir
-       read -p "Escriba la ruta donde se encuentra la carpeta " ruta
-       rm -rf $ruta/$bdir
-       sed '/^\['$bdir'\]$/,/^\[.*\]$/ { /^\['$bdir'\]$/ {d}; /^\[.*\]$/ !{d} }' /etc/samba/smb.conf > /etc/samba/smb.temp
-       rm -rf /etc/samba/smb.conf; mv /etc/samba/smb.temp /etc/samba/smb.conf; rm -rf /etc/samba/smb.temp
-       if [ $? = 0 ] ; then
-         echo -e "\033[32;1mLa carpeta $bdir se ha borrado correctamente.\033[0m"
-       else
-         echo -e "\033[31;1mLa carpeta $bdir no se ha borrado correctamente.\033[0m"
-       fi
-       restartSMB;;
-    3) clear;; 
-    *) clear
-       echo "No ha seleccionado ninguna opcion valida"
-       pause;;
-  esac
+           descripcion=`zenity --entry --text "Introduce una descripcion para el rescurso"`
+           while [[ $descripcion == NULL ]]; do
+               descripcion=`zenity --entry --text "Introduce una descripcion para el rescurso"`
+           done
+           
+           echo "" >> /etc/samba/smb.conf
+           echo "[$(basename $carpeta)]" >> /etc/samba/smb.conf
+           echo "	comment = $descripcion" >> /etc/samba/smb.conf
+           echo "	path = $carpeta" >> /etc/samba/smb.conf
+           echo "        create mask = 770" >> /etc/samba/smb.conf
+           echo "        directory mask = 770" >> /etc/samba/smb.conf
+           echo "        force create mode = 770" >> /etc/samba/smb.conf
+           echo "        force directory mode = 770" >> /etc/samba/smb.conf
+           echo "	read only = No" >> /etc/samba/smb.conf
+
+           auditar=`zenity --entry --text "Desea auditar este recurso(S/n): "`
+           while [[ $auditar != 'S' || $auditar != 'n' ]]; do
+               auditar=`zenity --entry --text "Desea auditar este recurso(S/n): "`
+           done
+
+           case $auditar in
+               'S') clear
+                    #Si no existe el script colorlog lo instalamos en el sistema
+                    if [ ! -f /usr/bin/colorlog.pl ]; then
+                        sudo cp colorlog.pl /usr/bin/colorlog.pl
+                        sudo chmod 777 /usr/bin/colorlog.pl
+                    fi
+
+                    echo "        vfs objects = full_audit" >> /etc/samba/smb.conf
+                    echo "        full_audit:prefix = %u|%I|%m|%S" >> /etc/samba/smb.conf
+                    echo "        full_audit:success = mkdir rename unlink rmdir pwrite pread connect disconnect" >> /etc/samba/smb.conf
+                    echo "        full_audit:failure = none" >> /etc/samba/smb.conf
+                    echo "        full_audit:facility = local7" >> /etc/samba/smb.conf
+                    echo "        full_audit:priority = NOTICE" >> /etc/samba/smb.conf;;
+               'n') clear;;
+                 *) clear
+                  zenity --error --text "No ha seleccionado ninguna opcion valida"
+                  pause;;
+           esac
+           if [ $? = 0 ] ; then
+               zenity --info --text "El directorio $carpeta se a creado correctamente"
+           else
+               zenity --erro --text "No se a podido crear el directorio $carpeta"
+           fi 
+           reiniciarSamba;;
+        # Borrar directorio compartido
+        2) clear
+           #Seleccionamos la carpeta que queremos eliminar
+           carpeta=`zenity --file-selection --directory`
+           while [[ ! -d $carpeta ]]; do
+               carpeta=`zenity --file-selection --directory`
+           done
+
+           rm -rf $carpeta
+           sed '/^\['$(basename $carpeta)'\]$/,/^\[.*\]$/ { /^\['$(basename $carpeta)'\]$/ {d}; /^\[.*\]$/ !{d} }' /etc/samba/smb.conf > /etc/samba/smb.temp
+           rm -rf /etc/samba/smb.conf; mv /etc/samba/smb.temp /etc/samba/smb.conf; rm -rf /etc/samba/smb.temp
+           if [ $? = 0 ] ; then
+             echo -e "\033[32;1mLa carpeta $(basename $carpeta) se ha borrado correctamente.\033[0m"
+           else
+             echo -e "\033[31;1mLa carpeta $(basename $carpeta) no se ha borrado correctamente.\033[0m"
+           fi
+           reiniciarSamba;;
+        3) clear;; 
+        *) clear
+           echo "No ha seleccionado ninguna opcion valida"
+           pause;;
+      esac
 }
 
 sysUsers(){ clear
