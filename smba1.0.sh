@@ -44,8 +44,10 @@ comprobarDistribucion()
 
     if [ $distribucionSistema == 'Ubuntu' ]; then
         $miDistribucion=$distrucionSistema
+    elif [ $distribucionSistema == 'Debian' ]; then
+        $miDistribucion=$distrucionSistema
     elif [ $distribucionSistema == 'CentOS' ]; then
-        $miDistribucion='CentOS'
+        $miDistribucion=$distrucionSistema
     else
       zenity --error --text "Distribucion no compatible."
       break
@@ -58,8 +60,11 @@ reiniciarSamba()
 {
     if [ $miDistribucion == 'Ubuntu' ]; then
         zenity --info --text "Reiniciando servidor samba"
-        /etc/init.d/smbd stop
-        /etc/init.d/smbd start
+        service smbd restart
+        pause
+    elif [ $miDistribucion == 'Debian' ]; then
+        zenity --info --text "Reiniciando servidor samba"
+        service smbd restart
         pause
     elif [ $miDistribucion == 'CentOS' ]; then
         /etc/init.d/smb restart
@@ -71,6 +76,8 @@ reiniciarSamba()
 instalarSamba()
 {
     if [ $miDistribucion == 'Ubuntu' ]; then
+        sudo apt-get install samba
+    elif [ $miDistribucion == 'Debian' ]; then
         sudo apt-get install samba
     elif [ $miDistribucion == 'CentOS' ]; then
         sudo yum install samba4
@@ -125,7 +132,7 @@ crearCarpetaCompartida()
            echo "	read only = No" >> /etc/samba/smb.conf
 
            auditar=`zenity --entry --text "Desea auditar este recurso(S/n): "`
-           while [[ $auditar != 'S' || $auditar != 'n' ]]; do
+           while [[ $auditar != 'S' && $auditar != 'n' ]]; do
                auditar=`zenity --entry --text "Desea auditar este recurso(S/n): "`
            done
 
@@ -178,7 +185,7 @@ crearCarpetaCompartida()
       esac
 }
 
-sysUsers(){ clear
+crearUsuariosSistema(){ clear
 echo ""
 echo "1. Crear un usuario en el sistema."
 echo "2. Borrar un usuario en el sistema."
@@ -214,7 +221,7 @@ case $eleccion in
 esac
 }
 
-smbUsers(){ 
+crearUsuariosSamba(){ 
 clear
 echo ""
 echo "1. Crear un usuario en SAMBA"
@@ -250,7 +257,7 @@ case $eleccion in
   esac
 }
 
-permissions(){
+configurarPermisos(){
 clear
 echo ""
 echo "1. Cambiar permisos."
@@ -319,7 +326,7 @@ case $choice in
 esac
 }
 
-groups(){
+configurarGrupos(){
 clear
 echo ""
 echo "1. Crear grupos."
@@ -385,7 +392,7 @@ case $eleccion in
 esac
 } 
 
-sysInfo(){
+informacionSistema(){
 clear
 echo ""
 echo "1. Ver Carpetas compartidas."
@@ -427,7 +434,7 @@ case $accion in
   esac
 }
 
-commands(){
+comandosBasicos(){
 clear
 echo "mkdir NOMBRE-CARPETA               --> Crea una carpeta"
 echo "rmdir NOMBRE-CARPETA               --> Borra una carpeta"
@@ -444,7 +451,7 @@ echo "nos mostrara por pantalla una explicacion mucho mas completa sobre el uso 
 pause
 }
 
-password(){
+cambiarPassword(){
 read -p "Introduce el usuario: " user
 passwd $user
 smbpasswd $user
@@ -457,7 +464,7 @@ fi
 pause
 }
 
-smbLog()
+logSamba()
 {
     # Muestra el log de la auditoria de samba
     echo "Recuerda añadir esta cadena 'local7.* /var/log/smbAudit.log' al fichero /etc/rsyslog.d/50-default.conf
@@ -468,15 +475,12 @@ smbLog()
 }
 
 #Comprobamos que es ejecutado por el usuario administrador
-rootCheck
+comprobarRoot
 
 #Comprobamos que distribucion esta instalada
-distriCheck
+comprobarDistribucion
 
 #Instalamos dependecias
-instalarDependecias
-
-
 
 while true
 do
@@ -508,17 +512,17 @@ do
     read -p "Introduce que accion deseas realizar: " eleccionMenu
 
     case $eleccionMenu in
-      1) clear; smbInstall;;
-      2) clear; dir;; 
-      3) clear; sysUsers;;
-      4) clear; smbUsers;; 
-      5) clear; groups;;
-      6) clear; permissions;;
-      7) clear; commands;;
-      8) clear; sysInfo;;
-      9) clear; password;;
-     10) clear; smbLog;;
-     11) clear; restartSMB;;
+      1) clear; instalarSamba;;
+      2) clear; crearCarpetaCompartida;; 
+      3) clear; crearUsuariosSistema;;
+      4) clear; crearUsuariosSamba;; 
+      5) clear; configurarGrupos;;
+      6) clear; configurarPermisos;;
+      7) clear; comandosBasicos;;
+      8) clear; informacionSistema;;
+      9) clear; cambiarPassword;;
+     10) clear; logSamba;;
+     11) clear; reiniciarSamba;;
      12) clear; break;;  
       *) echo "No ha seleccionado ninguna opcion valida"
          pause;;
