@@ -1,7 +1,7 @@
 #! /bin/bash
 # Nombre del script: smba
 # Programador: Paulo Gustavo Soares Teixeira <pauloxti@gmail.com>
-# Fecha: 14/04/2016
+# Fecha: 15/05/2016
 # Explicación del programa:
 
 # El programa consta de 9 funciones:
