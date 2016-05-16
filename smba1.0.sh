@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 # Nombre del script: smba
 # Programador: Paulo Gustavo Soares Teixeira <pauloxti@gmail.com>
 # Fecha: 15/05/2016
@@ -16,7 +16,7 @@
 #  9. password() ---> Nos permite cambiar la contraseña de los usuarios del sistema y de SAMBA.
 # 10. smbLog() -----> Muestra un log de las actividades en los directorios compartidos
 
-miDistribucion=NULL
+distribucionSistema=NULL
 
 # Funcion: Realiza una pausa en el terminal hasta que el usuario pulsa cualquier tecla
 pause()
@@ -39,18 +39,11 @@ comprobarRoot()
 #Comprueba que distribucion de linux esta ejecutando el script
 comprobarDistribucion()
 {
-    #Almacena la distribucion de linux del sistema
+    #Guardamos da distribucion del sistema 
     distribucionSistema=`lsb_release -a | grep "Distributor ID" | cut -d: -f2`
 
-    if [ $distribucionSistema == 'Ubuntu' ]; then
-        $miDistribucion=$distrucionSistema
-    elif [ $distribucionSistema == 'Debian' ]; then
-        $miDistribucion=$distrucionSistema
-    elif [ $distribucionSistema == 'CentOS' ]; then
-        $miDistribucion=$distrucionSistema
-    else
+    if [ $distribucionSistema != "Ubuntu" ] && [ $distribucionSistema != "CentOS" ]; then
       zenity --error --text "Distribucion no compatible."
-      break
       exit
     fi
 }
@@ -58,15 +51,18 @@ comprobarDistribucion()
 #Reinicia el servicio samba
 reiniciarSamba()
 {
-    if [ $miDistribucion == 'Ubuntu' ]; then
-        zenity --info --text "Reiniciando servidor samba"
+    if [ $distribucionSistema == 'Ubuntu' ]; then
+        # reiniciamos el servidor
         service smbd restart
+
+        #Comprobamos que se reinicio correctamente
+        if [ $? == 0 ]; then
+            zenity --info --text "Se ha reiniciado el servidor samba correctamente"
+        else
+            zenity --info --text "Error reiniciado el servidor samba"
+        fi
         pause
-    elif [ $miDistribucion == 'Debian' ]; then
-        zenity --info --text "Reiniciando servidor samba"
-        service smbd restart
-        pause
-    elif [ $miDistribucion == 'CentOS' ]; then
+    elif [ $distribucionSistema == 'CentOS' ]; then
         /etc/init.d/smb restart
         pause
     fi
@@ -75,11 +71,9 @@ reiniciarSamba()
 #Instala samba en el equipo
 instalarSamba()
 {
-    if [ $miDistribucion == 'Ubuntu' ]; then
-        sudo apt-get install samba
-    elif [ $miDistribucion == 'Debian' ]; then
-        sudo apt-get install samba
-    elif [ $miDistribucion == 'CentOS' ]; then
+    if [ $distribucionSistema == 'Ubuntu' ]; then
+        sudo apt-get install samba -y
+    elif [ $distribucionSistema == 'CentOS' ]; then
         sudo yum install samba4
     fi
 
@@ -143,7 +137,7 @@ crearCarpetaCompartida()
                         sudo cp colorlog.pl /usr/bin/colorlog.pl
                         sudo chmod 777 /usr/bin/colorlog.pl
                     fi
-
+                    
                     echo "        vfs objects = full_audit" >> /etc/samba/smb.conf
                     echo "        full_audit:prefix = %u|%I|%m|%S" >> /etc/samba/smb.conf
                     echo "        full_audit:success = mkdir rename unlink rmdir pwrite pread connect disconnect" >> /etc/samba/smb.conf
