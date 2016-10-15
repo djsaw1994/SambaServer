@@ -411,12 +411,12 @@ case $accion in
     4) clear; cat /etc/group | cut -d":" -f1; pause;;
     5) clear
        read -p "Introduzca el usuario que quiere ver: " user
-       echo "El usuario $user pertenece al grupo o grupos: "
+       zenity --info --text "El usuario $user pertenece al grupo o grupos: "
        id $user | cut -f3 -d " "
        pause;;
     6) clear
        read -p "Introduce el nombre del grupo: " group
-       echo "Al grupo $group pertenecen los usuarios:"
+       zenity --info --text "Al grupo $group pertenecen los usuarios:"
        cat /etc/group | grep $group | cut -f4 -d :
        echo ""
        pause;;
